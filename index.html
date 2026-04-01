@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css">
+    <title>상속세·증여세 전략 분석 리포트</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap');
+
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #f1f5f9;
+            color: #1e293b;
+            margin: 0;
+            padding: 0;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        @page {
+            size: A4 landscape;
+            margin: 0;
+        }
+
+        .page {
+            width: 297mm;
+            height: 210mm;
+            margin: 20px auto;
+            background: white;
+            padding: 12mm 18mm;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        @media print {
+            body { background: none !important; margin: 0 !important; padding: 0 !important; }
+            .page { margin: 0 !important; box-shadow: none !important; page-break-after: always !important; width: 297mm; height: 210mm; }
+            .no-print { display: none !important; }
+        }
+
+        .page-header {
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 0.8rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .page-footer {
+            margin-top: auto;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 0.8rem;
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            font-weight: 800;
+            color: #64748b;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-title span {
+            width: 4px;
+            height: 1.25rem;
+            background: #2563eb;
+            margin-right: 10px;
+            border-radius: 2px;
+        }
+
+        .card {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            background: #fff;
+            box-sizing: border-box;
+        }
+
+        .data-label {
+            font-size: 11px;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+
+        .btn-print {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #2563eb;
+            color: white;
+            font-weight: 800;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        /* 결과 숫자 크기 조정 클래스 */
+        .tax-result-text {
+            font-weight: 900;
+            letter-spacing: -0.05em;
+            word-break: break-all;
+            line-height: 1.1;
+        }
+
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+
+        .chart-wrapper {
+            position: relative;
+            min-width: 160px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 140px;
+            width: 140px;
+        }
+
+        .chart-legend {
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-color {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+        }
+
+        .qr-container {
+            width: 80px;
+            height: 80px;
+            background: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+            cursor: pointer;
+        }
+        .qr-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .qr-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            color: white;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .qr-container:hover .qr-overlay { opacity: 1; }
+    </style>
+</head>
+
+<body>
+
+    <button onclick="window.print()" class="btn-print no-print">리포트 인쇄 (PDF 저장)</button>
+
+    <!-- PAGE 1: COVER -->
+    <div class="page flex items-center justify-center bg-white">
+        <div class="absolute bg-blue-50 rounded-full w-[500px] h-[500px] -top-40 -left-40 opacity-60"></div>
+        <div class="absolute bg-emerald-50 rounded-full w-[300px] h-[300px] -bottom-20 -right-20 opacity-60"></div>
+        <div class="z-10 text-center">
+            <p class="text-blue-500 font-black text-2xl mb-4 tracking-[0.2em]">TAX & WEALTH MANAGEMENT</p>
+            <p class="text-slate-900 font-black text-6xl mb-6">자산 승계 전략 리포트</p>
+            <h1 class="text-4xl font-extrabold text-slate-700 leading-tight">상속세 및 증여세 시뮬레이션 분석</h1>
+            <div class="w-24 h-2 bg-blue-600 mx-auto mt-10"></div>
+        </div>
+    </div>
+
+    <!-- PAGE 2: 상속세 계산 -->
+    <div class="page">
+        <div class="page-header">
+            <div>
+                <div class="text-blue-600 font-black text-xs tracking-widest">CHAPTER 01</div>
+                <h1 class="text-3xl font-black text-slate-900">상속세 시뮬레이션 (Inheritance Tax)</h1>
+            </div>
+            <div class="text-right text-xs font-bold text-slate-400 uppercase">Analysis Dashboard</div>
+        </div>
+
+        <div class="grid grid-cols-12 gap-6 flex-grow">
+            <div class="col-span-4 space-y-4">
+                <div class="card border-blue-100 bg-blue-50/30">
+                    <h2 class="section-title"><span class="bg-blue-600"></span>자산 및 공제 입력</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="data-label font-black">총 상속재산 가액 (원)</label>
+                            <input type="number" id="inh_total" value="3000000000" class="w-full text-xl font-black mt-1 bg-transparent focus:outline-none border-b border-blue-200" oninput="calcInh()">
+                        </div>
+                        <div>
+                            <label class="data-label font-black">채무 및 공과금 (원)</label>
+                            <input type="number" id="inh_debt" value="200000000" class="w-full text-lg font-black mt-1 bg-transparent focus:outline-none border-b border-blue-200" oninput="calcInh()">
+                        </div>
+                        <div>
+                            <label class="data-label font-black">인적공제 선택</label>
+                            <select id="inh_deduction" class="w-full font-black mt-1 text-sm bg-transparent cursor-pointer focus:outline-none" onchange="calcInh()">
+                                <option value="500000000" selected>일괄공제 (5억)</option>
+                                <option value="1000000000">배우자+일괄공제 (최소 10억)</option>
+                                <option value="1500000000">배우자 최대+일괄공제 (최대 35억 한도)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-slate-900 text-white">
+                    <div class="text-[11px] text-blue-400 font-black mb-2 tracking-widest">ESTIMATED TAX RATE</div>
+                    <div id="inh_rate_display" class="text-5xl font-black">40%</div>
+                    <p class="text-xs text-slate-400 mt-4 leading-relaxed font-bold">* 과세표준에 따른 누진세율 및 신고세액공제 3% 반영</p>
+                </div>
+            </div>
+
+            <div class="col-span-8 flex flex-col gap-4">
+                <div class="card flex-grow flex flex-col justify-between p-8">
+                    <div class="flex justify-between items-center gap-4">
+                        <div class="flex-grow min-w-0">
+                            <div class="text-slate-400 font-black text-xs mb-1 uppercase">Total Inheritance Tax Payable</div>
+                            <div id="inh_tax_result" class="tax-result-text text-4xl text-blue-600">809,950,000 원</div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <div class="chart-container">
+                                <canvas id="inhChart"></canvas>
+                            </div>
+                            <div class="chart-legend">
+                                <div class="legend-item"><div class="legend-color bg-slate-200"></div><span class="text-slate-500">순자산 (과표-세금)</span></div>
+                                <div class="legend-item"><div class="legend-color bg-blue-600"></div><span class="text-blue-600">예상 상속세</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mt-8">
+                        <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div class="data-label mb-1">상속세 과세표준</div>
+                            <div id="inh_base" class="text-xl font-black text-slate-800">2,300,000,000 원</div>
+                        </div>
+                        <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                            <div class="data-label mb-1 text-emerald-600">누진공제액</div>
+                            <div id="inh_step_deduct" class="text-xl font-black text-emerald-700">160,000,000 원</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-amber-50 border-amber-100">
+                    <h3 class="text-sm font-black text-amber-900 flex items-center gap-2">💡 상속 전략 핵심 포인트</h3>
+                    <p class="text-[13px] text-amber-800 font-bold mt-2 leading-relaxed">상속세는 현금 납부가 원칙입니다. <br/><span class="text-blue-600">사전에 자산 구조를 점검</span>하여 절세 방안을 마련하는 것이 무엇보다 중요합니다.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="page-footer">
+            <span class="font-black text-slate-900">본 리포트의 수치는 참고용이며 실제 신고 시 전문가와 재검토가 필요합니다.</span>
+            <span class="font-black">PAGE 01 / 05</span>
+        </div>
+    </div>
+
+    <!-- PAGE 3: 상속세 절세 및 재원 전략 -->
+    <div class="page">
+        <div class="page-header">
+            <div><div class="text-blue-600 font-black text-xs tracking-widest">CHAPTER 02</div><h1 class="text-3xl font-black text-slate-900">상속세 절세 및 재원 전략 코멘트</h1></div>
+            <div class="text-right text-xs font-bold text-slate-400 uppercase">Expert Solution</div>
+        </div>
+        <div class="grid grid-cols-2 gap-6 flex-grow">
+            <div class="space-y-6 flex flex-col">
+                <div class="card bg-blue-50 border-t-4 border-blue-600 flex-1 flex flex-col justify-center">
+                    <div class="text-3xl mb-4">💰</div><h3 class="text-xl font-black mb-3">상속세 납부 재원 마련</h3>
+                    <p class="text-base text-slate-700 leading-relaxed font-bold">계좌/수익자를 자녀로 설정한 종신보험은 사망 보험금이 상속재산에 포함되지 않으면서 즉시 세금 납부 재원으로 활용 가능합니다.</p>
+                </div>
+                <div class="card bg-emerald-50 border-t-4 border-emerald-600 flex-1 flex flex-col justify-center">
+                    <div class="text-3xl mb-4">🏢</div><h3 class="text-xl font-black mb-3">가업상속공제 활용</h3>
+                    <p class="text-base text-slate-700 leading-relaxed font-bold">법인 대표님의 경우 최대 600억의 가업상속공제 활용 가능 여부를 최우선 점검하고 사후관리 요건을 정비해야 합니다.</p>
+                </div>
+            </div>
+            <div class="space-y-6 flex flex-col">
+                <div class="card bg-slate-50 border-t-4 border-slate-400 flex-1 flex flex-col justify-center">
+                    <div class="text-3xl mb-4">🏔️</div><h3 class="text-xl font-black mb-3">자산 평가액 관리</h3>
+                    <p class="text-base text-slate-700 leading-relaxed font-bold">상속 전 감정평가를 통해 가액을 확정짓거나, 수익형 부동산은 법인 전환을 통해 지분 형태로 상속하는 전략을 검토하십시오.</p>
+                </div>
+                <div class="card bg-slate-900 text-white border-t-4 border-blue-400 flex-1 flex flex-col justify-center">
+                    <div class="text-3xl mb-4">📜</div><h3 class="text-xl font-black text-blue-400 mb-3">사전 증여 골든타임</h3>
+                    <p class="text-base text-slate-300 leading-relaxed font-bold">상속 개시 10년 전에 증여를 마쳐야 상속재산에 합산되지 않습니다. 가장 낮은 세율 구간을 선점하는 것이 핵심입니다.</p>
+                </div>
+            </div>
+        </div>
+        <div class="page-footer">
+            <span class="font-black text-slate-900">본 리포트의 수치는 참고용이며 실제 신고 시 전문가와 재검토가 필요합니다.</span>
+            <span class="font-black">PAGE 02 / 05</span>
+        </div>
+    </div>
+
+    <!-- PAGE 4: 증여세 계산 -->
+    <div class="page">
+        <div class="page-header">
+            <div>
+                <div class="text-emerald-600 font-black text-xs tracking-widest">CHAPTER 03</div>
+                <h1 class="text-3xl font-black text-slate-900">증여세 시뮬레이션 (Gift Tax)</h1>
+            </div>
+            <div class="text-right text-xs font-bold text-slate-400 uppercase">Gift Strategy</div>
+        </div>
+
+        <div class="grid grid-cols-12 gap-6 flex-grow">
+            <div class="col-span-4 space-y-4">
+                <div class="card border-emerald-100 bg-emerald-50/30">
+                    <h2 class="section-title"><span class="bg-emerald-500"></span>증여 정보 입력</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="data-label font-black">증여가액 (원)</label>
+                            <input type="number" id="gift_total" value="500000000" class="w-full text-xl font-black mt-1 bg-transparent focus:outline-none border-b border-emerald-200" oninput="calcGift()">
+                        </div>
+                        <div>
+                            <label class="data-label font-black">수증자와의 관계</label>
+                            <select id="gift_relation" class="w-full font-black mt-1 text-sm bg-transparent cursor-pointer focus:outline-none" onchange="calcGift()">
+                                <option value="600000000">배우자 (6억)</option>
+                                <option value="50000000" selected>직계존비속-성년 (5천만)</option>
+                                <option value="20000000">직계존비속-미성년 (2천만)</option>
+                                <option value="10000000">기타친족 (1천만)</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-2 mt-4 p-3 bg-white rounded-lg border border-emerald-100">
+                            <input type="checkbox" id="gift_child" class="w-4 h-4" onchange="calcGift()">
+                            <label for="gift_child" class="text-xs font-black text-slate-600">세대생략 증여 (30% 할증)</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-slate-900 text-white">
+                    <div class="text-[11px] text-emerald-400 font-black mb-2 tracking-widest">GIFT TAX RATE</div>
+                    <div id="gift_rate_display" class="text-5xl font-black">20%</div>
+                    <p class="text-xs text-slate-400 mt-4 leading-relaxed font-bold">* 10년 주기 증여재산 공제를 활용하십시오.</p>
+                </div>
+            </div>
+
+            <div class="col-span-8 flex flex-col gap-4">
+                <div class="card flex-grow flex flex-col justify-between p-8 border-emerald-200">
+                    <div class="flex justify-between items-center gap-4">
+                        <div class="flex-grow min-w-0">
+                            <div class="text-slate-400 font-black text-xs mb-1 uppercase">Total Gift Tax Payable</div>
+                            <div id="gift_tax_result" class="tax-result-text text-4xl text-emerald-600">77,600,000 원</div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <div class="chart-container">
+                                <canvas id="giftChart"></canvas>
+                            </div>
+                            <div class="chart-legend">
+                                <div class="legend-item"><div class="legend-color bg-slate-200"></div><span class="text-slate-500">순수증여 (과표-세금)</span></div>
+                                <div class="legend-item"><div class="legend-color bg-emerald-500"></div><span class="text-emerald-600">예상 증여세</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mt-8">
+                        <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div class="data-label mb-1">증여세 과세표준</div>
+                            <div id="gift_base" class="text-xl font-black text-slate-800">450,000,000 원</div>
+                        </div>
+                        <div class="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                            <div class="data-label mb-1 text-blue-600">상속세 대비 절감효과(예상)</div>
+                            <div id="gift_benefit" class="text-xl font-black text-blue-700">약 45,000,000 원</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card bg-emerald-50 border-emerald-100">
+                    <h3 class="text-sm font-black text-emerald-900 flex items-center gap-2">💡 증여 전략 핵심 포인트</h3>
+                    <p class="text-[13px] text-emerald-800 font-bold mt-2 leading-relaxed">증여는 <span class="text-blue-600">10년 주기</span>로 리셋되는 공제를 활용하십시오. 자산 가치 상승 전 증여가 유리합니다.</p>
+                </div>
+            </div>
+        </div>
+        <div class="page-footer">
+            <span class="font-black text-slate-900">본 리포트의 수치는 참고용이며 실제 신고 시 전문가와 재검토가 필요합니다.</span>
+            <span class="font-black">PAGE 03 / 05</span>
+        </div>
+    </div>
+
+    <!-- PAGE 5: 전문가 상담 및 정보 -->
+    <div class="page">
+        <div class="page-header">
+            <div><div class="text-blue-600 font-black text-xs tracking-widest">CHAPTER 04</div><h1 class="text-3xl font-black text-slate-900">보험을 통한 자산 승계 및 전문가 상담</h1></div>
+            <div class="text-right text-xs font-bold text-slate-400 uppercase">Consulting Info</div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-8 flex-grow">
+            <!-- 왼쪽: 보험 절세 전략 -->
+            <div class="space-y-4">
+                <h2 class="section-title"><span class="bg-blue-600"></span>보험 활용 절세 솔루션</h2>
+                <div class="space-y-3">
+                    <div class="card bg-slate-50 border-l-4 border-blue-600 py-4">
+                        <h4 class="font-black text-slate-900 text-lg mb-1">상속세 재원 마련 (종신보험)</h4>
+                        <p class="text-sm font-bold text-slate-600 leading-relaxed">갑작스러운 상속 시 부동산 급매를 방지하고, 즉시 현금화 가능한 보험금으로 세금을 납부하여 자산을 온전히 보존합니다.</p>
+                    </div>
+                    <div class="card bg-slate-50 border-l-4 border-emerald-500 py-4">
+                        <h4 class="font-black text-slate-900 text-lg mb-1">비과세 증여 활용 (저축성보험)</h4>
+                        <p class="text-sm font-bold text-slate-600 leading-relaxed">비과세 요건을 충족하는 보험 상품을 통해 자녀에게 자산을 이전함으로써 증여세 부담 없이 자산 증식 효과를 제공합니다.</p>
+                    </div>
+                    <div class="card bg-slate-50 border-l-4 border-amber-500 py-4">
+                        <h4 class="font-black text-slate-900 text-lg mb-1">CEO 플랜 및 법인 자금 활용</h4>
+                        <p class="text-sm font-bold text-slate-600 leading-relaxed">법인 명의 보험을 통해 퇴직금 재원을 마련하거나, 경영권 승계 시 발생하는 막대한 세무 리스크를 분산시킬 수 있습니다.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 오른쪽: 컨설팅 상담 안내 -->
+            <div class="flex flex-col h-full">
+                <h2 class="section-title"><span class="bg-slate-900"></span>컨설팅 상담 안내</h2>
+                <div class="card bg-slate-900 text-white flex-grow flex flex-col justify-between p-8 relative overflow-hidden">
+                    <div class="absolute -right-10 -top-10 bg-blue-600/20 w-40 h-40 rounded-full blur-3xl"></div>
+                    
+                    <div class="z-10">
+                        <div class="mb-8">
+                            <label class="text-[10px] text-blue-400 font-black tracking-widest block mb-2 uppercase">Affiliation</label>
+                            <div class="text-xl font-black">삼성생명 삼성센터법인지점</div>
+                        </div>
+                        <div class="mb-8">
+                            <label class="text-[10px] text-blue-400 font-black tracking-widest block mb-2 uppercase">Expert</label>
+                            <div class="text-3xl font-black">GFC 최세림</div>
+                        </div>
+                        <div class="mb-8">
+                            <label class="text-[10px] text-blue-400 font-black tracking-widest block mb-2 uppercase">Contact</label>
+                            <div class="text-2xl font-black text-blue-400 underline decoration-2 underline-offset-8">010-7526-1826</div>
+                        </div>
+                    </div>
+
+                    <div class="z-10 flex items-center gap-6 pt-6 border-t border-slate-700">
+                        <div class="qr-container no-print" onclick="document.getElementById('qr_input').click()">
+                            <img id="qr_preview" src="data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100' height='100' fill='%23f8fafc'/%3E%3Cpath d='M30 30H45V45H30V30ZM55 30H70V45H55V30ZM30 55H45V70H30V55ZM55 55H70V70H55V55ZM45 45V55H55V45H45Z' fill='%2394a3b8'/%3E%3C/svg%3E" alt="QR Code">
+                            <div class="qr-overlay">이미지 선택</div>
+                            <input type="file" id="qr_input" class="hidden" accept="image/*" onchange="loadQR(this)">
+                        </div>
+                        <div class="hidden print:block w-20 h-20 bg-white p-1 rounded">
+                            <img id="qr_print" src="" class="w-full h-full object-contain">
+                        </div>
+                        <div>
+                            <div class="text-sm font-black text-blue-400 mb-1">QR 코드 스캔</div>
+                            <p class="text-xs text-slate-400 font-bold leading-tight">전문가 상담 채널로<br/>연결됩니다.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="absolute bottom-4 right-8 opacity-10 pointer-events-none">
+                        <div class="text-6xl font-black italic">TRUST</div>
+                    </div>
+                </div>
+                <div class="mt-4 text-center">
+                    <p class="text-slate-400 font-black text-sm italic tracking-widest">Trust & Value Partner</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="page-footer">
+            <span class="font-black text-slate-900">본 리포트의 수치는 참고용이며 실제 신고 시 전문가와 재검토가 필요합니다.</span>
+            <span class="font-black">PAGE 05 / 05</span>
+        </div>
+    </div>
+
+    <script>
+        const fmt = (n) => new Intl.NumberFormat('ko-KR').format(Math.round(n)) + " 원";
+        let inhChart, giftChart;
+
+        function loadQR(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('qr_preview').src = e.target.result;
+                    document.getElementById('qr_print').src = e.target.result;
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function getTaxInfo(base) {
+            if (base <= 100000000) return { rate: 0.10, deduct: 0 };
+            if (base <= 500000000) return { rate: 0.20, deduct: 10000000 };
+            if (base <= 1000000000) return { rate: 0.30, deduct: 60000000 };
+            if (base <= 3000000000) return { rate: 0.40, deduct: 160000000 };
+            return { rate: 0.50, deduct: 460000000 };
+        }
+
+        // 결과값 길이에 따라 폰트 사이즈 동적 조절
+        function adjustFontSize(elementId, text) {
+            const el = document.getElementById(elementId);
+            const len = text.length;
+            if (len > 20) el.style.fontSize = '1.5rem';
+            else if (len > 15) el.style.fontSize = '2rem';
+            else el.style.fontSize = '2.25rem';
+            el.innerText = text;
+        }
+
+        function initCharts() {
+            const inhCtx = document.getElementById('inhChart').getContext('2d');
+            inhChart = new Chart(inhCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['순과세표준', '상속세'],
+                    datasets: [{ data: [0, 0], backgroundColor: ['#e2e8f0', '#2563eb'], borderWidth: 0 }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    cutout: '75%'
+                }
+            });
+
+            const giftCtx = document.getElementById('giftChart').getContext('2d');
+            giftChart = new Chart(giftCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['순과세표준', '증여세'],
+                    datasets: [{ data: [0, 0], backgroundColor: ['#e2e8f0', '#10b981'], borderWidth: 0 }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    cutout: '75%'
+                }
+            });
+        }
+
+        function calcInh() {
+            const total = parseFloat(document.getElementById('inh_total').value) || 0;
+            const debt = parseFloat(document.getElementById('inh_debt').value) || 0;
+            const deduction = parseFloat(document.getElementById('inh_deduction').value) || 0;
+            
+            const base = Math.max(0, total - debt - deduction);
+            const info = getTaxInfo(base);
+            let tax = (base * info.rate) - info.deduct;
+            tax = Math.max(0, tax * 0.97);
+
+            document.getElementById('inh_base').innerText = fmt(base);
+            document.getElementById('inh_rate_display').innerText = (info.rate * 100) + "%";
+            document.getElementById('inh_step_deduct').innerText = fmt(info.deduct);
+            adjustFontSize('inh_tax_result', fmt(tax));
+
+            if (inhChart) {
+                const netBase = Math.max(0, base - tax);
+                inhChart.data.datasets[0].data = [netBase, tax];
+                inhChart.update();
+            }
+        }
+
+        function calcGift() {
+            const total = parseFloat(document.getElementById('gift_total').value) || 0;
+            const deduction = parseFloat(document.getElementById('gift_relation').value) || 0;
+            const isSurcharge = document.getElementById('gift_child').checked;
+            
+            const base = Math.max(0, total - deduction);
+            const info = getTaxInfo(base);
+            let tax = (base * info.rate) - info.deduct;
+            if (isSurcharge) tax = tax * 1.3;
+            tax = Math.max(0, tax * 0.97);
+
+            document.getElementById('gift_base').innerText = fmt(base);
+            document.getElementById('gift_rate_display').innerText = (info.rate * 100) + (isSurcharge ? "% (+할증)" : "%");
+            adjustFontSize('gift_tax_result', fmt(tax));
+            document.getElementById('gift_benefit').innerText = "약 " + fmt(base * 0.1);
+
+            if (giftChart) {
+                const netBase = Math.max(0, base - tax);
+                giftChart.data.datasets[0].data = [netBase, tax];
+                giftChart.update();
+            }
+        }
+
+        window.onload = () => {
+            initCharts();
+            calcInh();
+            calcGift();
+        };
+    </script>
+</body>
+</html>
